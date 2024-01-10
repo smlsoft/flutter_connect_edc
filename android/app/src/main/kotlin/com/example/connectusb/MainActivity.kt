@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
     private var serialPort: UsbSerialPort? = null
     private var dataStreamingThread: Thread? = null
     private var eventSink: EventChannel.EventSink? = null
+    var productName: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         // Set up the MethodChannel for method calls from Flutter
@@ -33,6 +34,7 @@ class MainActivity : FlutterActivity() {
                     listAvailableDrivers(result)
                 }
                 "connectToDevice" -> {
+                    productName = call.argument<String>("productName") ?: return@setMethodCallHandler
                     connectToDevice(result)
                 }
                 "disconnect" -> {
@@ -114,7 +116,7 @@ class MainActivity : FlutterActivity() {
             val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
             val usbDefaultProber = UsbSerialProber.getDefaultProber()
             val deviceList = usbManager.deviceList
-            var targetDevice = deviceList.values.find { it.productName == "A80" }
+            var targetDevice = deviceList.values.find { it.productName == productName }
             if (targetDevice != null) {
                 val connection = usbManager.openDevice(targetDevice)
                 if (connection == null) {

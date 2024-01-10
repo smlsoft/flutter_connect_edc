@@ -31,6 +31,12 @@ class _HomePageState extends State<HomePage> {
   List<dynamic> driversList = [];
   List<dynamic> driversAvailableList = [];
   EDCResponse? response;
+  String selectedDevice = "";
+  TextEditingController ref1Controller = TextEditingController();
+  TextEditingController ref2Controller = TextEditingController();
+  TextEditingController amountController = TextEditingController();
+  bool isStoping = false;
+
   Future<void> getListOfAvailableDrivers() async {
     try {
       final List<dynamic> drivers = await platform.invokeMethod('listAvailableDrivers');
@@ -44,8 +50,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> connectToDevice() async {
+    if (selectedDevice == "") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select device'),
+        ),
+      );
+      return;
+    }
     try {
-      final result = await platform.invokeMethod('connectToDevice');
+      final result = await platform.invokeMethod('connectToDevice', {
+        "productName": selectedDevice,
+      });
       setState(() {
         _response = result;
       });
@@ -61,19 +77,39 @@ class _HomePageState extends State<HomePage> {
       final result = await platform.invokeMethod('disconnect');
       setState(() {
         _response = result;
+        isStoping = false;
       });
       print('Disconnect result: $result');
     } on PlatformException catch (e) {
+      setState(() {
+        isStoping = false;
+      });
       print('Failed to connect to the device: ${e.message}');
     }
   }
 
   Future<void> sendDataToDevice() async {
+    if (selectedDevice == "") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select device'),
+        ),
+      );
+      return;
+    }
+    if (ref1Controller.text.isEmpty || ref2Controller.text.isEmpty || amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all fields'),
+        ),
+      );
+      return;
+    }
     try {
       await connectToDevice();
       await _startDataStreaming();
       EdcMessage message = EdcMessage();
-      List<int> datas = message.createSaleCreditCardMessage(35, "5432", "6666");
+      List<int> datas = message.createSaleCreditCardMessage(double.parse(amountController.text), ref1Controller.text, ref2Controller.text);
 
       Uint8List saleData = Uint8List.fromList(datas);
       platform.invokeMethod('sendData', {
@@ -113,6 +149,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _stopDataStreaming() async {
+    if (isStoping) {
+      return;
+    }
+    setState(() {
+      isStoping = true;
+    });
     try {
       // Call the stopDataStreaming method on the native side
       final String message = await platform.invokeMethod('stopDataStreaming');
@@ -121,6 +163,9 @@ class _HomePageState extends State<HomePage> {
         disconnect();
       });
     } on PlatformException catch (e) {
+      setState(() {
+        isStoping = false;
+      });
       print('Error stopping data streaming: ${e.message}');
     }
   }
@@ -136,23 +181,82 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(title: const Text('USB Communication')),
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
-            const Text("Drivers List"),
-            ...driversAvailableList.map((e) => Text(e["deviceId"].toString() + "-" + e["productName"])),
+            const Text('Available Serial Ports:'),
+            ...driversAvailableList.map((port) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  border: Border.all(
+                    color: Colors.grey,
+                    width: 1,
+                  ),
+                ),
+                child: ListTile(
+                  title: Text(port["deviceId"].toString() + "-" + port["productName"]),
+                  onTap: () {
+                    setState(() {
+                      selectedDevice = port["productName"];
+                    });
+
+                    connectToDevice();
+                  },
+                ),
+              );
+            }).toList(),
+            const SizedBox(height: 20),
+            Text("selectedDevice:$selectedDevice"),
+            const SizedBox(height: 20),
+            Container(
+              margin: const EdgeInsets.only(top: 20),
+              width: 300,
+              child: TextField(
+                controller: ref1Controller,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Ref 1',
+                ),
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.only(top: 20),
+              width: 300,
+              child: TextField(
+                controller: ref2Controller,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Ref 2',
+                ),
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.only(top: 20),
+              width: 300,
+              child: TextField(
+                controller: amountController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Amount',
+                ),
+                inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly],
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+                onPressed: () {
+                  sendDataToDevice();
+                },
+                child: const Text('Pay!!')),
+            const SizedBox(height: 20),
             Text("Response :$_response"),
-            ElevatedButton(
-              onPressed: () {
-                sendDataToDevice();
-              },
-              child: const Text("SendData"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                _stopStreaming();
-              },
-              child: const Text("Disconnect"),
-            ),
+            // ElevatedButton(
+            //   onPressed: () {
+            //     _stopStreaming();
+            //   },
+            //   child: const Text("Disconnect"),
+            // ),
             StreamBuilder<dynamic>(
               stream: _stream,
               builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
@@ -164,16 +268,25 @@ class _HomePageState extends State<HomePage> {
                   EDCResponse resp = EDCResponse();
                   resp.loadResponseBytes(stringToBytes(snapshot.data));
                   if (resp.isResponseSuccess()) {
-                    return Text('Success: ${resp.responseCode}');
-                  } else if (resp.isResponseCancel()) {
-                    return Text('Cancel: ${resp.responseCode}');
-                  } else if (resp.isMessageSuccessACK()) {
-                    return const Text('Wait for Payment');
-                  } else if (resp.isDuplicateSend()) {
-                    return const Text('Duplicate Send');
-                  } else {
-                    return Text('Error: ${resp.responseCode}');
+                    Future.delayed(const Duration(seconds: 1), () {
+                      _stopStreaming();
+                    });
                   }
+                  return Column(
+                    children: [
+                      if (resp.isResponseSuccess()) Text('Success: ${resp.responseCode}'),
+                      if (resp.isResponseCancel()) Text('Cancel: ${resp.responseCode}'),
+                      if (resp.isMessageSuccessACK()) const Text('Wait for Payment'),
+                      if (resp.isDuplicateSend()) const Text('Duplicate Send'),
+                      Text('Transaction Code: ${resp.transactionCode ?? ''}'),
+                      Text('Ref 1: ${resp.ref1 ?? ''}'),
+                      Text('Ref 2: ${resp.ref2 ?? ''}'),
+                      Text('Amount: ${resp.amount ?? ''}'),
+                      Text('Cart Number: ${resp.cardNumber ?? ''}'),
+                      Text('Holder Name: ${resp.cardHolderName ?? ''}'),
+                      Text('Type: ${resp.cardIssuerName ?? ''}'),
+                    ],
+                  );
                 }
               },
             ),
