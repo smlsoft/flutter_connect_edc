@@ -124,12 +124,12 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     getListOfAvailableDrivers();
-    _stream = streamChannel.receiveBroadcastStream();
+    //_stream = streamChannel.receiveBroadcastStream();
     //connectToDevice();
 
-    // eventChannel.receiveBroadcastStream().listen((dynamic data) {
-    //   print("xxxxx");
-    // });
+    streamChannel.receiveBroadcastStream().listen((dynamic data) {
+      print(data);
+    });
   }
 
   Uint8List stringToBytes(String input) {
@@ -257,39 +257,39 @@ class _HomePageState extends State<HomePage> {
             //   },
             //   child: const Text("Disconnect"),
             // ),
-            StreamBuilder<dynamic>(
-              stream: _stream,
-              builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
-                if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
-                } else if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Text('Awaiting data...');
-                } else {
-                  EDCResponse resp = EDCResponse();
-                  resp.loadResponseBytes(stringToBytes(snapshot.data));
-                  if (resp.isResponseSuccess()) {
-                    Future.delayed(const Duration(seconds: 1), () {
-                      _stopStreaming();
-                    });
-                  }
-                  return Column(
-                    children: [
-                      if (resp.isResponseSuccess()) Text('Success: ${resp.responseCode}'),
-                      if (resp.isResponseCancel()) Text('Cancel: ${resp.responseCode}'),
-                      if (resp.isMessageSuccessACK()) const Text('Wait for Payment'),
-                      if (resp.isDuplicateSend()) const Text('Duplicate Send'),
-                      Text('Transaction Code: ${resp.transactionCode ?? ''}'),
-                      Text('Ref 1: ${resp.ref1 ?? ''}'),
-                      Text('Ref 2: ${resp.ref2 ?? ''}'),
-                      Text('Amount: ${resp.amount ?? ''}'),
-                      Text('Cart Number: ${resp.cardNumber ?? ''}'),
-                      Text('Holder Name: ${resp.cardHolderName ?? ''}'),
-                      Text('Type: ${resp.cardIssuerName ?? ''}'),
-                    ],
-                  );
-                }
-              },
-            ),
+            // StreamBuilder<dynamic>(
+            //   stream: _stream,
+            //   builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+            //     if (snapshot.hasError) {
+            //       return Text('Error: ${snapshot.error}');
+            //     } else if (snapshot.connectionState == ConnectionState.waiting) {
+            //       return const Text('Awaiting data...');
+            //     } else {
+            //       EDCResponse resp = EDCResponse();
+            //       resp.loadResponseBytes(stringToBytes(snapshot.data));
+            //       if (resp.isResponseSuccess()) {
+            //         Future.delayed(const Duration(seconds: 1), () {
+            //           _stopStreaming();
+            //         });
+            //       }
+            //       return Column(
+            //         children: [
+            //           if (resp.isResponseSuccess()) Text('Success: ${resp.responseCode}'),
+            //           if (resp.isResponseCancel()) Text('Cancel: ${resp.responseCode}'),
+            //           if (resp.isMessageSuccessACK()) const Text('Wait for Payment'),
+            //           if (resp.isDuplicateSend()) const Text('Duplicate Send'),
+            //           Text('Transaction Code: ${resp.transactionCode ?? ''}'),
+            //           Text('Ref 1: ${resp.ref1 ?? ''}'),
+            //           Text('Ref 2: ${resp.ref2 ?? ''}'),
+            //           Text('Amount: ${resp.amount ?? ''}'),
+            //           Text('Cart Number: ${resp.cardNumber ?? ''}'),
+            //           Text('Holder Name: ${resp.cardHolderName ?? ''}'),
+            //           Text('Type: ${resp.cardIssuerName ?? ''}'),
+            //         ],
+            //       );
+            //     }
+            //   },
+            // ),
           ],
         ),
       ),
